@@ -39,7 +39,21 @@ v1.0.1 已完成以下修复：
 
 ## 安装
 
-### 方式一：直接通过 GitHub 安装
+### 方式一：使用 DSH 官方 CLI 命令一键安装（推荐）
+
+在终端中执行以下命令（按所用环境选择 Desktop 或 Web Profile）：
+
+```bash
+# 安装到 Desktop 桌面端环境（推荐）
+dsh plugin --profile desktop add github:new-Beginner/dsh-thought-fold
+
+# 若使用 Web 环境
+dsh plugin --profile web add github:new-Beginner/dsh-thought-fold
+```
+
+安装完成后重启 DeepSeek Harness 即可生效。
+
+### 方式二：手动配置 Profile `package.json`
 
 在 Desktop Profile `~/.dsh/profiles/desktop/package.json` 的 `dependencies` 中添加：
 
@@ -55,7 +69,7 @@ v1.0.1 已完成以下修复：
 "dsh-thought-fold"
 ```
 
-### 方式二：使用预打包本地安装包
+### 方式三：使用预打包本地安装包
 
 下载或生成 `dsh-thought-fold-1.0.1.tgz` 后，在 `~/.dsh/profiles/desktop/package.json` 的 `dependencies` 中添加：
 

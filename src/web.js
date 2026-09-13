@@ -1,5 +1,3 @@
-import { getPromptText } from './prompt.js';
-
 export const name = 'dsh-thought-fold-web';
 export const inject = ['connection', 'thoughtFoldService'];
 
@@ -11,13 +9,10 @@ export function apply(ctx) {
   });
 
   async function buildPayload() {
-    const config = service.getConfig();
-    const promptPreview = getPromptText(config);
-
     return {
       ok: true,
-      config,
-      promptPreview,
+      config: service.getConfig(),
+      writable: Boolean(service.settingsScope),
       timestamp: Date.now()
     };
   }
@@ -37,22 +32,17 @@ export function apply(ctx) {
         }
 
         const data = await request.json();
-        const { action } = data;
-
-        if (action === 'saveSettings') {
-          if (service.settingsScope && data.patch) {
+        if (data.action === 'saveSettings') {
+          if (!service.settingsScope) {
+            return reply({ error: '设置服务不可用，当前配置为只读状态' }, 503);
+          }
+          if (data.patch) {
             await service.settingsScope.update(data.patch);
-            ctx.emit('system-prompt/change');
           }
           return reply(await buildPayload());
         }
 
-        if (action === 'reload') {
-          ctx.emit('system-prompt/change');
-          return reply(await buildPayload());
-        }
-
-        return reply({ error: `未知操作: ${action}` }, 400);
+        return reply({ error: `未知操作: ${data.action}` }, 400);
       } catch (err) {
         return reply({ error: err.message || String(err) }, 500);
       }

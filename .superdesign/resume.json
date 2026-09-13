@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "settings:thought-fold": {
+      "targetKind": "existing-ui",
+      "projectId": "59f0fb11-710f-4134-b0f8-ee8f379efeee",
+      "baselineDraftId": "60a1313a-9a9e-4fb8-a3c5-b747f5a979ee",
+      "activeDraftId": "e4be1aec-bbc7-453a-8d88-c9622d8f0dae",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "client.js",
+        "src/config.js",
+        "src/web.js",
+        "index.js"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "66dc3b3cc386dcf025342bbfda106ed404a2c4a3a8d98ff7bd0d7dd0396e79e0",
+        "client.js": "56b584484f6f1573613cfaaa4a60b894ddda5cfc58cbd6e2dce6ff914f7c8993",
+        "src/config.js": "afd333b0ee43b71114bb36b2626847be4d4c720f2a708288d2277ad2f2e9dc4e",
+        "src/web.js": "ccf2f1631cf7868e09f07c6ca61a225a37676b8d2735868bfdccb3f0154180d6",
+        "index.js": "d8495bb4f726b34543a2049b2876dabc737e49064e8ea5c66a02feadce928e26"
+      },
+      "components": [],
+      "drafts": {
+        "60a1313a-9a9e-4fb8-a3c5-b747f5a979ee": {
+          "title": "DSH 思考折叠设置基线",
+          "visualDirection": "current UI faithful reproduction",
+          "currentVersion": 1
+        },
+        "e0536880-c93d-476b-b5b5-77609a9efe94": {
+          "title": "DSH 思考与折叠设置",
+          "visualDirection": "calm single-card native panel",
+          "parentDraftId": "60a1313a-9a9e-4fb8-a3c5-b747f5a979ee",
+          "currentVersion": 1
+        },
+        "e4be1aec-bbc7-453a-8d88-c9622d8f0dae": {
+          "title": "思考折叠原生面板",
+          "visualDirection": "compact grouped runtime and appearance panel",
+          "parentDraftId": "60a1313a-9a9e-4fb8-a3c5-b747f5a979ee",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-09-13T09:05:00.000Z"
+    }
+  }
+}

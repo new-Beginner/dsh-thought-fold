@@ -1,108 +1,88 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DEFAULT_CONFIG, resolveOrder, SettingsSchema } from '../src/config.js';
-import { getPromptText } from '../src/prompt.js';
+import { DEFAULT_CONFIG, SettingsSchema } from '../src/config.js';
 import { apply, name, inject } from '../index.js';
+import { apply as applyWeb } from '../src/web.js';
 
 test('dsh-thought-fold: 基础元数据验证', () => {
   assert.equal(name, 'dsh-thought-fold');
-  assert.deepEqual(inject, ['systemPrompt', 'settings']);
+  assert.deepEqual(inject, ['settings']);
 });
 
-test('dsh-thought-fold: 默认配置完整性测试', () => {
-  assert.equal(DEFAULT_CONFIG.enabled, true);
-  assert.equal(DEFAULT_CONFIG.autoFold, true);
-  assert.equal(DEFAULT_CONFIG.showLiveHud, true);
-  assert.equal(DEFAULT_CONFIG.injectPrompt, true);
-  assert.equal(DEFAULT_CONFIG.promptStyle, 'standard');
-  assert.equal(DEFAULT_CONFIG.foldStyle, 'codex');
-  assert.equal(DEFAULT_CONFIG.hideRawThinkTag, false);
-  assert.equal(DEFAULT_CONFIG.promptPosition, 'after-persona');
+test('dsh-thought-fold: 默认配置只包含运行与外观设置', () => {
+  assert.deepEqual(DEFAULT_CONFIG, {
+    enabled: true,
+    showLiveHud: true,
+    foldStyle: 'codex'
+  });
+  assert.ok(SettingsSchema);
 });
 
-test('dsh-thought-fold: 提示词位置权重映射测试', () => {
-  assert.equal(resolveOrder('after-persona'), 12);
-  assert.equal(resolveOrder('before-tools'), 960);
-  assert.equal(resolveOrder('after-tools'), 9960);
-  assert.equal(resolveOrder('unknown'), 12);
-});
-
-test('dsh-thought-fold: 提示词生成逻辑测试', () => {
-  // 1. 禁用插件时为空
-  assert.equal(getPromptText({ enabled: false }), '');
-
-  // 2. 禁用提示词注入时为空
-  assert.equal(getPromptText({ enabled: true, injectPrompt: false }), '');
-
-  // 3. 标准模式 (standard)
-  const standardText = getPromptText({ enabled: true, injectPrompt: true, promptStyle: 'standard' });
-  assert.match(standardText, /Codex 风格执行进度与总结规范/);
-  assert.match(standardText, /最终总结/);
-
-  // 4. 紧凑模式 (concise)
-  const conciseText = getPromptText({ enabled: true, injectPrompt: true, promptStyle: 'concise' });
-  assert.match(conciseText, /Codex 紧凑进度规范/);
-
-  // 5. 深度推理模式 (deep)
-  const deepText = getPromptText({ enabled: true, injectPrompt: true, promptStyle: 'deep' });
-  assert.match(deepText, /Codex 详细进度与验证规范/);
-});
-
-test('dsh-thought-fold: 插件 apply 装载测试 (Mock Context)', () => {
-  let sectionMounted = null;
+test('dsh-thought-fold: 插件装载不注册系统提示段落', async () => {
   const registeredServices = {};
   const registeredCommands = {};
+  let childPlugin = null;
+  let savedPatch = null;
 
   const mockCtx = {
     settings: {
-      register(key, schema, opts) {
+      register() {
         return {
           get: () => ({ ...DEFAULT_CONFIG }),
-          update: async () => {},
-          watch: (fn) => {}
+          update: async (patch) => { savedPatch = patch; }
         };
       }
     },
-    systemPrompt: {
-      section(def) {
-        sectionMounted = def;
-        return () => { sectionMounted = null; };
-      }
-    },
-    provide(key, val) {
-      registeredServices[key] = val;
-    },
-    plugin(pluginDef) {},
+    provide(key, value) { registeredServices[key] = value; },
+    plugin(value) { childPlugin = value; },
     inject(deps, fn) {
       if (deps.includes('commands')) {
-        fn({
-          commands: {
-            register(cmd) {
-              registeredCommands[cmd.name] = cmd;
-            }
-          }
-        });
+        fn({ commands: { register(cmd) { registeredCommands[cmd.name] = cmd; } } });
       }
     },
-    effect(fn) { fn(); },
-    emit(event) {}
+    logger: { warn() {} }
   };
 
   apply(mockCtx);
 
-  // 验证提示词段落已挂载
-  assert.ok(sectionMounted);
-  assert.equal(sectionMounted.name, 'dsh-thought-fold:guidance');
-  assert.equal(sectionMounted.order, 12);
-  const renderedText = sectionMounted.text({});
-  assert.match(renderedText, /Codex/);
-
-  // 验证对外服务已注册
   assert.ok(registeredServices.thoughtFoldService);
-  assert.equal(typeof registeredServices.thoughtFoldService.getConfig, 'function');
-
-  // 验证指令已注册
+  assert.ok(childPlugin);
   assert.ok(registeredCommands.fold);
-  assert.equal(registeredCommands.fold.name, 'fold');
+
+  const status = await registeredCommands.fold.handler({ rawInput: 'status' });
+  assert.match(status.text, /折叠按钮样式/);
+  assert.doesNotMatch(status.text, /提示词|prompt/i);
+
+  await registeredCommands.fold.handler({ rawInput: 'toggle' });
+  assert.deepEqual(savedPatch, { enabled: false });
+});
+
+test('dsh-thought-fold: 设置不可写时 API 明确返回只读与 503', async () => {
+  let route;
+  applyWeb({
+    thoughtFoldService: {
+      getConfig: () => ({ ...DEFAULT_CONFIG }),
+      settingsScope: undefined
+    },
+    connection: {
+      fetch: {
+        register(definition) { route = definition; }
+      }
+    }
+  });
+
+  const getResponse = await route.fetch(new Request('http://localhost/api/dsh-thought-fold'));
+  const getPayload = await getResponse.json();
+  assert.equal(getResponse.status, 200);
+  assert.equal(getPayload.writable, false);
+
+  const postResponse = await route.fetch(new Request('http://localhost/api/dsh-thought-fold', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'saveSettings', patch: { enabled: false } })
+  }));
+  const postPayload = await postResponse.json();
+  assert.equal(postResponse.status, 503);
+  assert.match(postPayload.error, /只读/);
 });

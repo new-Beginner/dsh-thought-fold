@@ -1,7 +1,7 @@
 {
   "name": "dsh-thought-fold",
-  "version": "1.0.1",
-  "description": "DeepSeek Harness 的 Codex 风格进度可视化与原生过程折叠增强插件（安全修复版）",
+  "version": "2.0.0",
+  "description": "DeepSeek Harness 的原生过程折叠与运行状态样式增强插件",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -45,15 +45,11 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.0",
-    "@deepseek-ai/dsh-system-prompt": ">=0.1.0",
     "@deepseek-ai/dsh-settings": ">=0.1.0",
     "@deepseek-ai/schemastery": ">=3.18.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-system-prompt": {
       "optional": true
     },
     "@deepseek-ai/dsh-settings": {
@@ -64,7 +60,7 @@
     }
   },
   "scripts": {
-    "test": "node test/run.js",
+    "test": "node --test test/plugin.test.js && node test/run.js",
     "pack:plugin": "npm pack --cache ./.npm-cache && node -e \"require('node:fs').rmSync('.npm-cache', {recursive:true, force:true})\""
   },
   "keywords": [
@@ -75,7 +71,6 @@
     "thought-fold",
     "thinking",
     "tool-calls",
-    "codex",
     "folding",
     "hud"
   ]

@@ -2,89 +2,51 @@
 
 [![GitHub license](https://img.shields.io/github/license/new-Beginner/dsh-thought-fold)](https://github.com/new-Beginner/dsh-thought-fold/blob/main/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/new-Beginner/dsh-thought-fold)](https://github.com/new-Beginner/dsh-thought-fold)
-[![recommended by: dshfind](https://img.shields.io/badge/recommended%20by-dshfind-FFD700?style=flat-square)](https://dshfind.com)
-[![1024Store](https://img.shields.io/badge/1024Store-cataloged-blue?style=flat-square)](https://deepseek1024.com)
 
-> DeepSeek Harness 的 Codex 风格**可见执行进度**与**原生过程折叠**增强插件。  
-> v1.0.1 是白屏安全修复版：移除了所有全局 DOM 监听、消息节点重写和 `<think>` 标签清洗逻辑。
+> DeepSeek Harness 的原生过程折叠与运行状态样式增强插件。
+>
+> v2.0.0 不再向模型注入任何指令，AI 的输出方式完全由模型与 DSH 自身配置决定。
 
 ## 功能
 
-- 向外部模型注入简短的阶段进度规范：开始工具操作前说明下一步，阶段切换时报告关键发现。
-- 要求模型在全部工具调用结束后输出完成总结、关键文件和验证结果。
 - 复用 DeepSeek Harness 自带的 `turn-process` / Compact Transcript 折叠机制。
-- 使用非侵入式静态 CSS 增强 DSH 原生过程折叠按钮的 Codex 风格外观。
-- 在 DSH 设置中心提供“Codex 思考与折叠”页面。
-- 提供 `/fold status`、`/fold toggle`、`/fold reload`、`/fold help` 指令。
+- 使用非侵入式静态 CSS 优化原生过程折叠按钮和运行状态。
+- 提供经典、极简、清晰三种折叠按钮外观。
+- 在 DSH 设置中心提供简洁、响应式的“思考折叠”设置页。
+- 提供 `/fold status`、`/fold toggle`、`/fold help` 指令。
+- 任务完成后的实际折叠由 DSH 通用设置中的紧凑会话视图负责，插件不伪造或接管该行为。
 
-## v1.0.1 白屏修复
+## 安全边界
 
-v1.0.0 会在整个 `document.body` 上创建 `MutationObserver`，其回调又会重写聊天节点的 `innerHTML`。DOM 改动会再次触发观察器，形成无休止的扫描和渲染循环，最终导致 Desktop 卡死或白屏。
+插件不会创建全局 `MutationObserver`，不会轮询或重写聊天 DOM，也不会清洗 `<think>` / `<thought>` 标签。插件仅设置一个根节点样式属性，让静态 CSS 根据启用状态与外观选项生效。
 
-v1.0.1 已完成以下修复：
-
-- 删除全局 `MutationObserver`；
-- 删除聊天轮次 `querySelectorAll` 轮询；
-- 删除所有消息 `innerHTML` 重写；
-- 删除 `<think>` / `<thought>` 原地清洗；
-- 删除 Client 模块加载阶段的自动执行逻辑；
-- 将 Host 设置 Schema 恢复为官方插件使用的静态 `@deepseek-ai/schemastery` 导入；
-- 折叠交互完全交由 DSH 自带的 Compact Transcript 管理。
+插件也不会注册 `systemPrompt` 段落，不依赖 `@deepseek-ai/dsh-system-prompt`，不会改变模型指令或输出习惯。
 
 ## 折叠设置
 
-安装后请在 DSH 的通用设置中将**会话记录视图（Transcript View）**设置为**紧凑（Compact）**。DSH 会在任务完成后显示原生 `turn-process` 折叠按钮，将中间进度消息和工具调用收起，并保留最后的总结。
-
-> 插件不会尝试获取或展示模型未通过 API 返回的私密内部推理链。它展示的是模型明确输出的 reasoning 摘要或面向用户的阶段进度更新。
+安装后建议在 DSH 的通用设置中将**会话记录视图（Transcript View）**设为**紧凑（Compact）**。DSH 会在任务完成后显示原生 `turn-process` 折叠按钮，将中间过程和工具调用收起。
 
 ## 安装
 
-### 方式一：使用 DSH 官方 CLI 命令一键安装（推荐）
-
-在终端中执行以下命令（按所用环境选择 Desktop 或 Web Profile）：
+### 使用 DSH CLI（推荐）
 
 ```bash
-# 安装到 Desktop 桌面端环境（推荐）
+# Desktop Profile
 dsh plugin --profile desktop add github:new-Beginner/dsh-thought-fold
 
-# 若使用 Web 环境
+# Web Profile
 dsh plugin --profile web add github:new-Beginner/dsh-thought-fold
 ```
 
-安装完成后重启 DeepSeek Harness 即可生效。
+安装完成后重启 DeepSeek Harness。
 
-### 方式二：手动配置 Profile `package.json`
-
-在 Desktop Profile `~/.dsh/profiles/desktop/package.json` 的 `dependencies` 中添加：
+### 手动配置 Profile
 
 ```json
 {
-  "dsh-thought-fold": "github:new-Beginner/dsh-thought-fold"
-}
-```
-
-然后在 `dsh.profile.bundles` 中添加：
-
-```json
-"dsh-thought-fold"
-```
-
-### 方式三：使用预打包本地安装包
-
-下载或生成 `dsh-thought-fold-1.0.1.tgz` 后，在 `~/.dsh/profiles/desktop/package.json` 的 `dependencies` 中添加：
-
-```json
-{
-  "dsh-thought-fold": "file:./dsh-thought-fold-1.0.1.tgz"
-}
-```
-
-并在 `dsh.profile.bundles` 中添加 `"dsh-thought-fold"`。
-
-### 完整 Profile 片段示例
-
-```json
-{
+  "dependencies": {
+    "dsh-thought-fold": "github:new-Beginner/dsh-thought-fold"
+  },
   "dsh": {
     "profile": {
       "bundles": [
@@ -97,21 +59,22 @@ dsh plugin --profile web add github:new-Beginner/dsh-thought-fold
 }
 ```
 
-重启 DeepSeek Harness Desktop 后生效。
-
 ## 配置
 
 ```yaml
 dsh-thought-fold:
   enabled: true
-  autoFold: true
   showLiveHud: true
-  injectPrompt: true
-  promptStyle: standard   # standard | concise | deep
-  foldStyle: codex
-  hideRawThinkTag: false  # 安全版不修改聊天 DOM
-  promptPosition: after-persona
+  foldStyle: codex # codex | minimal | clean
 ```
+
+旧版本遗留的提示相关配置与 `autoFold` 字段会被忽略；实际折叠由 DSH 的紧凑会话视图控制。
+
+## 指令
+
+- `/fold status`：查看插件、自动折叠和外观状态。
+- `/fold toggle`：快速开启或关闭插件。
+- `/fold help`：显示帮助。
 
 ## 验证
 
@@ -120,13 +83,13 @@ npm test
 npm run pack:plugin
 ```
 
-测试包含白屏回归守卫，确保 Client 代码中不存在：
+自动化测试会检查：
 
-- `new MutationObserver(...)`
-- `.innerHTML = ...`
-- 全局聊天轮次轮询
-- `document.body` 监听/改写
-- Host 顶层动态 `await import(...)`
+- 不存在模型指令注入路径与相关依赖；
+- 不存在全局 DOM 观察、聊天轮询或 `innerHTML` 重写；
+- Client 重复装载不会重复注入样式；
+- 三种外观配置能同步到运行时根节点；
+- 设置页包含响应式布局、键盘焦点与主题安全下拉框。
 
 ## License
 

@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { apply, name, inject } from '../index.js';
 
-console.log('🧪 开始运行 dsh-thought-fold v2.0.0 自动化测试...');
+console.log('🧪 开始运行 dsh-thought-fold 自动化测试...');
 
 assert.equal(name, 'dsh-thought-fold');
 assert.deepEqual(inject, ['settings']);
@@ -61,7 +61,9 @@ assert.doesNotMatch(packageSource, /dsh-system-prompt/);
 assert.doesNotMatch(clientSource, /promptPreview|dsh-tf-preview|injectPrompt|promptStyle|promptPosition|autoFold/);
 console.log('✓ 提示注入路径、配置项、预览区与依赖已全部移除');
 
-assert.doesNotMatch(clientSource, /new\s+MutationObserver\s*\(/, 'Client 不得创建全局 MutationObserver');
+assert.match(clientSource, /observer\.observe\(scope,/, '观察器必须限定在会话作用域');
+assert.doesNotMatch(clientSource, /\.observe\(\s*(?:document|doc)\b/, '不得观察整页或根文档');
+assert.doesNotMatch(clientSource, /setInterval\s*\(/, '不得轮询聊天内容');
 assert.doesNotMatch(clientSource, /\.innerHTML\s*=/, 'Client 不得重写聊天 DOM innerHTML');
 assert.doesNotMatch(clientSource, /querySelectorAll\s*\(\s*['"]\[data-chat-turn/, 'Client 不得轮询全部聊天轮次');
 assert.doesNotMatch(clientSource, /document\.body/, 'Client 不得监听或改写 document.body');
@@ -114,6 +116,7 @@ vm.runInNewContext(clientSource, {
   document: documentStub,
   fetch: async () => ({ ok: true, json: async () => ({ config: DEFAULT_CONFIG }) }),
   console,
+  AbortController,
   setTimeout,
   clearTimeout
 });
@@ -134,7 +137,7 @@ const clientCtx = {
   effect(callback) { lifecycleDisposers.push(callback()); },
   slots: {
     inject(name, callback) {
-      assert.equal(name, 'settings.section');
+      assert.ok(['settings.section', 'conversation.composer.dock'].includes(name));
       callback();
     },
     register(definition, component) {
@@ -195,6 +198,7 @@ async function inspectRuntimeState(config, shouldFail = false) {
       ? async () => { throw new Error('offline'); }
       : async () => ({ ok: true, json: async () => ({ config }) }),
     console,
+    AbortController,
     setTimeout,
     clearTimeout
   });

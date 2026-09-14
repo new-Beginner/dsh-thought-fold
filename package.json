@@ -1,7 +1,7 @@
 {
   "name": "dsh-thought-fold",
   "version": "2.2.0",
-  "description": "DeepSeek Harness 的原生过程折叠与运行状态样式增强插件",
+  "description": "DeepSeek Harness 的原生执行过程折叠与样式增强插件。提供展开段底部收起、输入区智能浮动吸顶收起、中途插话自动分段与任务中断折叠；纯 UI 交互增强，零模型提示词注入，稳定不破坏消息 DOM。",
   "type": "module",
   "main": "index.js",
   "exports": {

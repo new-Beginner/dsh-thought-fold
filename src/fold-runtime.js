@@ -24,6 +24,10 @@
       const hiddenRows = new Set();
       const previousHidden = new Map();
       const resizeTargets = new Set();
+      const nativeLeases = new Map();
+      const nativeReveals = new Set();
+      let requestedNative = new Set();
+      let requestedReveals = new Set();
       const proxy = makeButton('收起本段过程');
       proxy.dataset.dshTfFloating = '';
       proxy.hidden = true;
@@ -42,7 +46,7 @@
       }
       function setHidden(row, value) {
         if (value) {
-          if (!hiddenRows.has(row)) previousHidden.set(row, row.getAttribute('hidden'));
+          if (!hiddenRows.has(row)) previousHidden.set(row, { value: row.getAttribute('hidden'), nativeOwned: row.hasAttribute('data-turn-process-hidden') });
           if (!row.hasAttribute(HIDDEN)) row.setAttribute(HIDDEN, '');
           if (row.getAttribute('hidden') !== 'until-found') row.setAttribute('hidden', 'until-found');
           hiddenRows.add(row);
@@ -51,8 +55,8 @@
           // Native compact mode may have taken ownership since we hid this row.
           if (previousHidden.has(row) && !row.hasAttribute('data-turn-process-hidden') && row.getAttribute('hidden') === 'until-found') {
             const original = previousHidden.get(row);
-            if (original === null) row.removeAttribute('hidden');
-            else row.setAttribute('hidden', original);
+            if (original.value === null || original.nativeOwned) row.removeAttribute('hidden');
+            else row.setAttribute('hidden', original.value);
           }
           previousHidden.delete(row);
           hiddenRows.delete(row);
@@ -62,7 +66,10 @@
         return group.kind === 'native' ? group.top.getAttribute('aria-expanded') === 'true' : choices.get(group.id) === true;
       }
       function visible(element) {
-        return element?.isConnected && !element.closest('[hidden]:not([hidden="until-found"]), [data-turn-process-hidden], [' + HIDDEN + ']') && element.getClientRects().length > 0;
+        if (!element?.isConnected || element.getClientRects().length === 0) return false;
+        if (element.closest('[' + HIDDEN + ']')) return false;
+        const blocked = element.closest('[hidden]:not([hidden="until-found"]), [data-turn-process-hidden]');
+        return !blocked || blocked.hasAttribute('data-dsh-tf-native-reveal');
       }
       function hideProxy() {
         proxy.hidden = true;
@@ -100,6 +107,41 @@
       }
       proxy.addEventListener('click', () => { if (target) collapse(target); });
 
+      function clickNativeQuietly(button) {
+        const focused = doc.activeElement;
+        const scrollTop = scope.scrollTop;
+        const scrollLeft = scope.scrollLeft;
+        button.click();
+        if (focused?.isConnected && typeof focused.focus === 'function') focused.focus({ preventScroll: true });
+        if (doc.activeElement === button && focused !== button) button.blur();
+        scope.scrollTop = scrollTop;
+        scope.scrollLeft = scrollLeft;
+      }
+      function releaseNative(button, lease) {
+        const replaced = [...nativeLeases].some(([other, current]) => other !== button && current.row === lease.row && requestedNative.has(other));
+        if (!replaced) lease.row?.removeAttribute('data-dsh-tf-native-suspended');
+        nativeLeases.delete(button);
+      }
+      function suspendNative(button, members) {
+        requestedNative.add(button);
+        let lease = nativeLeases.get(button);
+        if (!lease) {
+          lease = { row: button.closest('[data-chat-flow-key]') };
+          nativeLeases.set(button, lease);
+        }
+        // Pure presentation takeover: never click or mutate the native disclosure state.
+        // This remains reversible even if React replaces the native button or commits late.
+        for (const row of members) {
+          requestedReveals.add(row);
+          nativeReveals.add(row);
+          if (!row.hasAttribute('data-dsh-tf-native-reveal')) row.setAttribute('data-dsh-tf-native-reveal', '');
+        }
+        lease.row?.setAttribute('data-dsh-tf-native-suspended', '');
+        return true;
+      }
+      function groupLabel(group) {
+        return `第 ${group.turn} 轮${group.segment ? `第 ${group.segment} 段` : ''}思考与工具调用`;
+      }
       function descriptors(flow) {
         // One bounded read of the current conversation's direct flow rows per structural batch.
         const rows = Array.from(flow.children).filter(row => row.hasAttribute('data-chat-flow-key'));
@@ -122,6 +164,50 @@
           const controlNode = control && meta.get(control);
           const spec = controlNode?.data;
           const id = `${turn}:${spec?.answerStep ?? 'native'}`;
+          const items = turnRows.map(row => {
+            const node = meta.get(row);
+            const location = node?.location;
+            const status = node?.data?.status;
+            const root = node?.kind === 'tool-call' ? node.data?.root : null;
+            const hasText = node?.kind === 'assistant-step' && node.data?.blocks?.some(block => block.kind === 'text' && typeof block.text === 'string' && block.text.trim() !== '');
+            return {
+              key: row.getAttribute('data-chat-flow-key'), kind: node?.kind ?? 'unknown', seq: node?.anchorSeq,
+              hasText: !!hasText,
+              onlyReasoning: node?.kind === 'assistant-step' && node.data?.blocks?.some(block => block.kind === 'reasoning') && node.data.blocks.every(block => block.kind === 'reasoning' || (block.kind === 'text' && typeof block.text === 'string' && block.text.trim() === '')),
+              running: status === 'running' || (node?.kind === 'tool-call' && root != null && root.kind == null),
+              settled: status === 'settled' || status === 'interrupted' || (node?.kind === 'tool-call' && root?.kind != null),
+              interrupted: status === 'interrupted' || root?.error?.code === 'interrupted',
+              stepClosed: location?.kind === 'step' && location.step?.status === 'closed',
+              stepEndSeq: location?.kind === 'step' ? location.step?.end?.seq : undefined
+            };
+          });
+          const turnLocation = controlNode?.location?.turn ?? turnRows.map(row => meta.get(row)?.location?.turn).find(Boolean);
+          const answerRow = turnRows.find(row => {
+            const node = meta.get(row);
+            return node?.kind === 'assistant-step' && spec?.answerStep != null && node.data?.step === spec.answerStep;
+          });
+          const tail = items.find(item => item.kind === 'turn-tail');
+          const special = planSpecialProcess(items, {
+            closed: turnLocation?.status === 'closed',
+            endSeq: turnLocation?.end?.seq ?? tail?.seq,
+            answerKey: answerRow?.getAttribute('data-chat-flow-key')
+          });
+          if (special) {
+            const nativeMembers = turnRows.filter(row => row.hasAttribute('data-turn-process-member'));
+            const inlineReasoning = turnRows.filter(row => meta.get(row)?.kind === 'assistant-step').flatMap(row => Array.from(row.querySelectorAll('[data-turn-process-inline]')));
+            const whole = groups.get(id);
+            if (whole && !whole.segment) for (const segment of special.segments) {
+              const segmentId = `${turn}:segment:${segment.boundary}`;
+              if (!choices.has(segmentId)) choices.set(segmentId, open(whole));
+            }
+            if (top && !suspendNative(top, [...nativeMembers, ...inlineReasoning])) continue;
+            special.segments.forEach((segment, index) => {
+              const keys = new Set(segment.keys);
+              const members = turnRows.filter(row => keys.has(row.getAttribute('data-chat-flow-key')));
+              if (members.length) results.push({ id: `${turn}:segment:${segment.boundary}`, kind: 'compat', members, flow, turn, segment: index + 1, label: segment.label });
+            });
+            continue;
+          }
           if (top) {
             const members = turnRows.filter(row => row.hasAttribute('data-turn-process-member'));
             if (members.length) results.push({ id, kind: 'native', top, members, flow, turn });
@@ -145,6 +231,8 @@
         return results;
       }
       function reconcile() {
+        requestedNative = new Set();
+        requestedReveals = new Set();
         flows = Array.from(scope.querySelectorAll(FLOW));
         const next = new Map();
         const wantedHidden = new Set();
@@ -180,14 +268,8 @@
           if (group.kind === 'native' && created) {
             const desired = choices.get(group.id) === true;
             if (open(group) !== desired) {
-              const focused = doc.activeElement;
-              const scrollTop = scope.scrollTop;
-              const scrollLeft = scope.scrollLeft;
               group.pendingOpen = { desired, attempts: 0 };
-              group.top.click();
-              if (focused?.isConnected && typeof focused.focus === 'function') focused.focus({ preventScroll: true });
-              scope.scrollTop = scrollTop;
-              scope.scrollLeft = scrollLeft;
+              clickNativeQuietly(group.top);
               schedule(true);
             }
           }
@@ -196,7 +278,8 @@
             if (group.top.nextSibling !== first) flow.insertBefore(group.top, first);
             const expanded = open(group);
             group.top.setAttribute('aria-expanded', String(expanded));
-            setText(group.top, `${expanded ? '收起' : '展开'}思考与工具调用 · ${group.members.length} 项`);
+            group.top.setAttribute('aria-label', `${expanded ? '收起' : '展开'}${groupLabel(group)}`);
+            setText(group.top, `${expanded ? '收起' : '展开'}${group.label || '思考与工具调用'}${group.segment ? ` · 第 ${group.segment} 段` : ''} · ${group.members.length} 项`);
             for (const row of group.members) if (!expanded) wantedHidden.add(row);
           } else {
             if (group.pendingOpen && open(group) !== group.pendingOpen.desired && group.pendingOpen.attempts++ < 2) {
@@ -209,12 +292,17 @@
           const last = group.members[group.members.length - 1];
           if (last.nextSibling !== group.bottom) flow.insertBefore(group.bottom, last.nextSibling);
           group.bottom.hidden = !open(group);
-          group.bottom.setAttribute('aria-label', `收起第 ${group.turn} 轮思考与工具调用`);
+          group.bottom.setAttribute('aria-label', `收起${groupLabel(group)}`);
         }
         for (const [id, group] of groups) if (!next.has(id)) forget(group);
         groups = next;
         for (const row of hiddenRows) if (!wantedHidden.has(row)) setHidden(row, false);
         for (const row of wantedHidden) setHidden(row, true);
+        for (const [button, lease] of nativeLeases) if (!requestedNative.has(button)) releaseNative(button, lease);
+        for (const row of nativeReveals) if (!requestedReveals.has(row)) {
+          row.removeAttribute('data-dsh-tf-native-reveal');
+          nativeReveals.delete(row);
+        }
         if (resizeObserver) {
           const wanted = new Set([scope, scope.querySelector('[data-composer-seat]'), ...flows].filter(Boolean));
           for (const node of resizeTargets) if (!wanted.has(node)) { resizeObserver.unobserve(node); resizeTargets.delete(node); }
@@ -260,8 +348,8 @@
         proxy.style.left = `${left}px`;
         proxy.style.top = `${bottomEdge - 36}px`;
         proxy.style.maxWidth = `${right - left}px`;
-        proxy.setAttribute('aria-label', `收起第 ${chosen.turn} 轮思考与工具调用`);
-        proxy.title = `仅收起第 ${chosen.turn} 轮，不影响其他已展开内容`;
+        proxy.setAttribute('aria-label', `收起${groupLabel(chosen)}`);
+        proxy.title = `仅收起${groupLabel(chosen)}，不影响其他已展开内容`;
       }
       function flush() {
         frame = 0;
@@ -314,6 +402,9 @@
         win.visualViewport?.removeEventListener('resize', onScroll);
         win.visualViewport?.removeEventListener('scroll', onScroll);
         for (const row of hiddenRows) setHidden(row, false);
+        for (const [button, lease] of nativeLeases) releaseNative(button, lease);
+        for (const row of nativeReveals) row.removeAttribute('data-dsh-tf-native-reveal');
+        nativeReveals.clear();
         for (const group of groups.values()) forget(group);
         groups.clear();
         hideProxy();

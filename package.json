@@ -1,6 +1,6 @@
 {
   "name": "dsh-thought-fold",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "DeepSeek Harness 的原生过程折叠与运行状态样式增强插件",
   "type": "module",
   "main": "index.js",
@@ -62,7 +62,7 @@
   },
   "scripts": {
     "build": "node scripts/build-client.js",
-    "test": "node scripts/build-client.js --check && node --test test/plugin.test.js test/settings-lifecycle.test.js && node test/run.js",
+    "test": "node scripts/build-client.js --check && node --test test/plugin.test.js test/settings-lifecycle.test.js test/process-plan.test.js && node test/run.js",
     "test:browser": "node test/browser.test.js",
     "prepack": "npm run build",
     "pack:plugin": "npm pack --cache ./.npm-cache && node -e \"require('node:fs').rmSync('.npm-cache', {recursive:true, force:true})\""

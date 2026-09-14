@@ -126,6 +126,9 @@ window.__ModuleLoader__.load({
         background: var(--dsw-alias-bg-layer-2, #f7f8fa) !important;
       }
 
+      [data-dsh-tf-native-suspended] { display: none !important; }
+      [data-dsh-tf-native-reveal]:not([data-dsh-tf-hidden]) { display: block !important; content-visibility: visible !important; }
+      [data-turn-process-inline][data-dsh-tf-native-reveal]:not([data-dsh-tf-hidden]) { margin-bottom: 0 !important; }
       [data-dsh-tf-hidden][hidden="until-found"] { content-visibility: hidden; height: 0 !important; min-height: 0 !important; margin-block: 0 !important; padding-block: 0 !important; border-block-width: 0 !important; overflow: clip; }
       .dsh-tf-fold-button {
         box-sizing: border-box;
@@ -487,7 +490,7 @@ window.__ModuleLoader__.load({
           ),
           h('div', { className: 'dsh-tf-assurance' },
             h(Icon, { name: 'info', size: 15 }),
-            h('span', null, '开启“紧凑会话视图”时复用原生折叠；原生控件不可用时，对已确认完成且有最终回答的过程提供兼容折叠。')
+            h('span', null, '普通轮次复用原生折叠；插话按段收起，中断保留最后的已输出回答与提示；仍在运行的当前段保持可见。')
           )
         ),
         h('section', { className: 'dsh-tf-card', 'aria-labelledby': 'dsh-tf-appearance-title' },
